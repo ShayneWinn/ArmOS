@@ -23,26 +23,26 @@ using VRageMath;
 namespace IngameScript
 {
     /// <summary>
-    /// The HomeArmCommand command.
+    /// The MoveArmCommand command.
     /// </summary>
-    public class HomeArmCommand : BaseModuleCommand
+    public class MoveArmCommand : BaseModuleCommand
     {
         /// <summary>
         /// The ArmModule extension module.
         /// </summary>
-        ArmModule Module;
+        readonly ArmModule Module;
 
         /// <summary>
         /// The name of the command.
         /// </summary>
-        public override string Name => "arm/home";
+        public override string Name => "arm/move";
 
         /// <summary>
         /// Constructor. We instantiate the command with a reference to the module 
         /// it belongs to so that it may access logic within the module.
         /// </summary>
         /// <param name="module"></param>
-        public HomeArmCommand(ArmModule module)
+        public MoveArmCommand(ArmModule module)
         {
             Module = module;
         }
@@ -57,8 +57,22 @@ namespace IngameScript
         /// <returns></returns>
         public override string Execute(TerminalCommand command)
         {
-            Module.HomeArm();
-            return $"Homing arm...";
+            if (command.Arguments.Count == 2)
+            {
+                command.Arguments.Add("1");
+            }
+            if (command.Arguments.Count != 3)
+                return $"Usage: arm/move [x] [y] (seconds)";
+            
+            double x, y, seconds;
+            if (!double.TryParse(command.Arguments[0], out x))
+                return $"Error: could not parse x '{command.Arguments[0]}'";
+            if (!double.TryParse(command.Arguments[1], out y))
+                return $"Error: could not parse y '{command.Arguments[1]}'";
+            if (!double.TryParse(command.Arguments[2], out seconds))
+                return $"Error: could not parse seconds '{command.Arguments[2]}'";
+
+            return Module.MoveTo(x, y, seconds);
         }
     }
 }

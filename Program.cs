@@ -34,6 +34,8 @@ namespace IngameScript
         public void Save()
         {
             Storage = mother.Save();
+
+            
         }
 
         /// <summary>

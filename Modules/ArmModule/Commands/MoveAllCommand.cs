@@ -23,26 +23,26 @@ using VRageMath;
 namespace IngameScript
 {
     /// <summary>
-    /// The testCommand command.
+    /// The MoveAllCommand command.
     /// </summary>
-    public class testCommand : BaseModuleCommand
+    public class MoveAllCommand : BaseModuleCommand
     {
         /// <summary>
-        /// The test extension module.
+        /// The ArmModule extension module.
         /// </summary>
-        readonly test Module;
+        readonly ArmModule Module;
 
         /// <summary>
         /// The name of the command.
         /// </summary>
-        public override string Name => "command/name";
+        public override string Name => "arm/moveall";
 
         /// <summary>
         /// Constructor. We instantiate the command with a reference to the module 
         /// it belongs to so that it may access logic within the module.
         /// </summary>
         /// <param name="module"></param>
-        public testCommand(test module)
+        public MoveAllCommand(ArmModule module)
         {
             Module = module;
         }
@@ -57,6 +57,8 @@ namespace IngameScript
         /// <returns></returns>
         public override string Execute(TerminalCommand command)
         {
+            Module.MoveAll();
+
             return $"Command executed successfully. Yay!";
         }
     }

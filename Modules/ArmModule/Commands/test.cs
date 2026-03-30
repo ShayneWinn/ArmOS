@@ -23,26 +23,26 @@ using VRageMath;
 namespace IngameScript
 {
     /// <summary>
-    /// The HomeArmCommand command.
+    /// The test command.
     /// </summary>
-    public class HomeArmCommand : BaseModuleCommand
+    public class testcommand : BaseModuleCommand
     {
         /// <summary>
         /// The ArmModule extension module.
         /// </summary>
-        ArmModule Module;
+        readonly ArmModule Module;
 
         /// <summary>
         /// The name of the command.
         /// </summary>
-        public override string Name => "arm/home";
+        public override string Name => "test";
 
         /// <summary>
         /// Constructor. We instantiate the command with a reference to the module 
         /// it belongs to so that it may access logic within the module.
         /// </summary>
         /// <param name="module"></param>
-        public HomeArmCommand(ArmModule module)
+        public testcommand(ArmModule module)
         {
             Module = module;
         }
@@ -57,8 +57,7 @@ namespace IngameScript
         /// <returns></returns>
         public override string Execute(TerminalCommand command)
         {
-            Module.HomeArm();
-            return $"Homing arm...";
+            return $"test";
         }
     }
 }
