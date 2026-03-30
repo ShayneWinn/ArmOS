@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netframework48</TargetFramework>
+    <RootNamespace>IngameScript</RootNamespace>
+    <LangVersion>6</LangVersion>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <Configurations>Release;Debug</Configurations>
+    <Platforms>x64</Platforms>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Mal.Mdk2.PbAnalyzers" Version="2.1.13">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Mal.Mdk2.PbPackager" Version="2.1.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Mal.Mdk2.References" Version="2.2.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Instructions.readme" />
+    <AdditionalFiles Include="Instructions.readme" />
+	<AdditionalFiles Include="thumb.png" />
+  </ItemGroup>
+
+  <Target Name="MinifyScriptFile" AfterTargets="MdkPack">
+    <PropertyGroup>
+      <FinalOutputPath>$(SpaceEngineersDataPath)\IngameScripts\local\$(MSBuildProjectName)\script.cs</FinalOutputPath>
+      <MinifyScriptPath>$(MSBuildProjectDirectory)\.build\RemoveKeywords.ps1</MinifyScriptPath>
+    </PropertyGroup>
+
+    <Exec Command="echo Processing file: $(FinalOutputPath)" />
+    <Exec Command="echo Removing 'private' keyword: $(FinalOutputPath)" />
+    <Exec Command="powershell -ExecutionPolicy Bypass -NoProfile -File &quot;$(MinifyScriptPath)&quot; &quot;$(FinalOutputPath)&quot;" />
+  </Target>
+</Project>
