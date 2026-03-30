@@ -29,6 +29,17 @@ namespace IngameScript
     public class test: BaseExtensionModule
     {
         /// <summary>
+        /// The RotorModule extension module.
+        /// </summary>
+        /// THIS LINE IS NOT WORKING
+        RotorModule RotorModule;
+
+        /// <summary>
+        /// The BlockCatalogue core module.
+        /// </summary>
+        BlockCatalogue BlockCatalogue;
+
+        /// <summary>
         /// Constructor. In most cases, you should use the boot method to set up this module.
         /// </summary>
         /// <param name="mother"></param>

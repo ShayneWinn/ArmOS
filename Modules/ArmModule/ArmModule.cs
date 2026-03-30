@@ -97,12 +97,10 @@ namespace IngameScript
 
         private void StartMotor(IMyMotorStator motor, double angle, double seconds=1)
         {
-            foreach (var em in Mother.CoreModules.ToTrackedImmutableArray())
-            {
-                Mother.Print($"Module: {em.Value.GetType().Name}");
-            }
             Mother.Print($"Starting motor {motor.CustomName} to move to {angle} radians over {seconds} seconds...");
+
             double rpm = MathHelper.ToDegrees(angle - motor.Angle) / seconds * 60;
+            // PROBLEM LINE!!
             bus.RunTerminalCommand("rotor/rotate Rotor.Base 90");
         }
 
