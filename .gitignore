@@ -12,10 +12,6 @@
 *.userosscache
 *.sln.docstates
 /docs
-/Core
-
-# Project configuration
-*.local.ini
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
