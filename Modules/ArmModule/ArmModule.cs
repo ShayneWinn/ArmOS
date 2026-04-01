@@ -35,28 +35,9 @@ namespace IngameScript
     public class ArmModule: BaseExtensionModule
     {
 
-        private string[] motorNames =
-        {
-            "RotorBase",
-            "RotorWrist",
-            "HingeShoulder",
-            "HingeElbowA",
-            "HingeElbowB",
-            "HingeWrist",
-        };
-        private Dictionary<string, IMyMotorStator> motors;
-        private Dictionary<string, PIDController> motorControllers;
-
-        CommandBus bus;
-        BlockCatalogue catalogue;
-
-        public IMyMotorStator GetMotorByName(string name)
-        {
-            if (motors.ContainsKey(name))
-                return motors[name];
-            else
-                return null;
-        }
+        //  //==========\\
+        //  ||  MOTHER  ||
+        //  \\==========//
 
         /// <summary>
         /// Constructor. In most cases, you should use the boot method to set up this module.
@@ -67,54 +48,77 @@ namespace IngameScript
         }
 
         /// <summary>
-        /// Boot the module. This is where you should register commands, subscribe 
-        /// to events, and reference other modules registered with Mother.
+        /// Boot the module, register commands, subscribe to events,
+        /// and reference other modules registered with Mother.
+        /// Find all motors with the tag "arm/motor" and initialize them.
         /// </summary>
         public override void Boot()
         {
-            this.bus = Mother.GetModule<CommandBus>();
-            this.catalogue = Mother.GetModule<BlockCatalogue>();
+            Bus = Mother.GetModule<CommandBus>();
+            Catalogue = Mother.GetModule<BlockCatalogue>();
 
-            this.motors = new Dictionary<string, IMyMotorStator>();
-            this.motorControllers = new Dictionary<string, PIDController>();
+            MotorNames = new List<string>();
+            Motors = new Dictionary<string, IMyMotorStator>();
 
-            foreach (string motorName in motorNames)
+            Catalogue.GetBlocksByName<IMyMotorStator>("#arm/motor");
+            foreach (var motor in Catalogue.GetBlocksByName<IMyMotorStator>("#arm/motor"))
             {
-                IMyMotorStator motor = catalogue.GetBlocksByName<IMyMotorStator>(motorName.Trim()).ElementAtOrDefault(0);
-                if(motor == null)
-                {
-                    Mother.Print($"Error: could not find motor with name '{motorName}'");
-                    continue;
-                } 
-                motors[motorName] = motor;
-                motorControllers[motorName] = new PIDController(1, 0, 0);
+                Mother.Print("$Found motor: " + motor.CustomName);
+                MotorNames.Add(motor.CustomName);
+                Motors[motor.CustomName] = motor;
             }
+            MotorNames.Sort((a, b) => {
+                var aid = this.Catalogue.GetBlockConfiguration(this.Motors[a]).Get("general", "arm/id").ToInt32(-1);
+                var bid = this.Catalogue.GetBlockConfiguration(this.Motors[b]).Get("general", "arm/id").ToInt32(-1);
+                if (aid == -1)
+                    Mother.Print($"Error: motor '{a}' is missing configuration 'arm/id'");
+                if (bid == -1)
+                    Mother.Print($"Error: motor '{b}' is missing configuration 'arm/id'");
+                return aid.CompareTo(bid);
+            });
 
+
+            //MOTHER... HEAR ME!!!
             RegisterCommand(new HomeArmCommand(this));
             RegisterCommand(new RotorRotateCommand(this));
             RegisterCommand(new MoveArmCommand(this));
             RegisterCommand(new MoveAllCommand(this));
-
-            
-            
-
-            
-
-            positionQueue.Add(new Position(0, 1, 1));
-            positionQueue.Add(new Position(0, 2, 1));
-            positionQueue.Add(new Position(0, 3, 1));
-            positionQueue.Add(new Position(0, 4, 1));
-            positionQueue.Add(new Position(2, 4, 1.8));
-            positionQueue.Add(new Position(2, 2, 1.8));
-            positionQueue.Add(new Position(2, 0, 1.8));
-            positionQueue.Add(new Position(2, -2, 1.8));
-            positionQueue.Add(new Position(2, -4, 1.8));
-            positionQueue.Add(new Position(2, 0, 4));
-            positionQueue.Add(new Position(0, 4, 4));
-            positionQueue.Add(new Position(0, 1, 6));
         }
 
-        public string MoveTo(double x, double y, double seconds)
+        /// <summary>
+        /// Run the module. This method is called each program cycle. You should limit 
+        /// use of this method to essential tasks that need to run frequently.
+        /// </summary>
+        public override void Run()
+        {
+            //
+        }
+
+
+        //  //==========\\
+        //  ||  Public  ||
+        //  \\==========//
+
+        public IMyMotorStator GetMotorByName(string name)
+        {
+            if (Motors.ContainsKey(name))
+                return Motors[name];
+            else
+                return null;
+        }
+
+
+        //  //=========\\
+        //  ||  Logic  ||
+        //  \\=========//
+
+        private List<string> MotorNames;
+        private Dictionary<string, IMyMotorStator> Motors;
+
+        CommandBus Bus;
+        BlockCatalogue Catalogue;
+
+        private double[] InverseKinematics(double x, double y)
         {
             double armlength = 3f;
             double baselength = Math.Sqrt(x * x + y * y);
@@ -122,25 +126,80 @@ namespace IngameScript
             double shoulderAngle = Math.Asin( (baselength-1)/2 / armlength );
             double elbowangle = (Math.PI/2) - shoulderAngle;
 
-            bus.RunTerminalCommand($"rotor/rotate {motorNames[0]} {MathHelper.ToDegrees(baseAngle)} --time={seconds}");
-            bus.RunTerminalCommand($"rotor/rotate {motorNames[1]} {-MathHelper.ToDegrees(baseAngle)} --time={seconds}");
-            bus.RunTerminalCommand($"rotor/rotate {motorNames[2]} {MathHelper.ToDegrees(shoulderAngle)} --time={seconds}");
-            bus.RunTerminalCommand($"rotor/rotate {motorNames[3]} {MathHelper.ToDegrees(elbowangle)} --time={seconds}");
-            bus.RunTerminalCommand($"rotor/rotate {motorNames[4]} {MathHelper.ToDegrees(elbowangle)} --time={seconds}");
-            bus.RunTerminalCommand($"rotor/rotate {motorNames[5]} {MathHelper.ToDegrees(shoulderAngle)} --time={seconds}");
-            
+            baseAngle = MathHelper.ToDegrees(baseAngle);
+            shoulderAngle = MathHelper.ToDegrees(shoulderAngle);
+            elbowangle = MathHelper.ToDegrees(elbowangle);
 
-            return $"Moving ({x}, {y}) over {seconds} seconds...";
+            return new double[] {
+                baseAngle,
+                shoulderAngle,
+                elbowangle,
+                elbowangle,
+                shoulderAngle,
+                baseAngle
+            };
         }
 
-        public string StartMotor(IMyMotorStator motor, double angle, double speed)
+        private bool IsMotorAtTarget(IMyMotorStator motor, double angle)
         {
+            var actual = MathHelper.ToDegrees(motor.Angle);
+            double delta = mod(angle - actual + 180, 360) - 180;
+            return Math.Abs(delta) <= 1;
+        }
 
-            motor.RotateToAngle(MyRotationDirection.AUTO, (float)angle, (float)speed);
+        private double[] targetAngles;
+        public string MoveTo(double x, double y, double seconds)
+        {
+            targetAngles = InverseKinematics(x, y);
+            Mother.Print($"Moving {Motors.Count} to {targetAngles.Length} angles");
+            for (int i = 0; i < targetAngles.Length; i++)
+            {
+                var motor = Motors[MotorNames[i]];
+                var targetAngle = targetAngles[i];
+                StartMotor(motor, targetAngle, seconds);
+                Mother.GetModule<ActivityMonitor>().RegisterBlock(
+                    motor,
+                    block => IsMotorAtTarget(block as IMyMotorStator, targetAngle),
+                    block => StopMotor(block as IMyMotorStator)
+                );
+            }
+            
+            return $"Moving ({x}, {y}) over {seconds}s";
+        }
 
-            //motor.TargetVelocityRPM = (float)speed;
+        public string MoveTo(PathPoint target)
+        {
+            return MoveTo(target.x, target.y, target.t);
+        }
 
-            return $"Moving {motor.CustomName} to {angle} degrees at {speed} rpm...";
+        private void StartTo(PathPoint point)
+        {
+            targetAngles = InverseKinematics(point.x, point.y);
+            for (int i = 0; i < MotorNames.Count; i++)
+            {
+                var motor = Motors[MotorNames[i]];
+                StartMotor(motor, targetAngles[i], point.t);
+            }
+        }
+
+        private double mod (double a, double n) { return (a % n + n) % n; }
+
+        public void StartMotor(IMyMotorStator motor, double angle, double seconds)
+        {
+            var actual = MathHelper.ToDegrees(motor.Angle);
+            double delta = mod(angle - actual + 180, 360) - 180;
+            var degps = delta / seconds;
+            var rpm = MathHelper.Clamp(degps/6, -10, 10);
+            motor.TargetVelocityRPM = (float)rpm;
+            motor.Enabled = true;
+            
+            Mother.Print($"{motor.CustomName} => {angle:F2} @ {rpm:F2}");
+        }
+        private void StopMotor(IMyMotorStator motor)
+        {
+            motor.TargetVelocityRad = 0;
+            //motor.Enabled = false;
+            //Mother.GetModule<ActivityMonitor>().UnregisterBlock(motor);
         }
 
         /// <summary>
@@ -151,11 +210,7 @@ namespace IngameScript
             MoveTo(0, 1, 5);
         }
 
-        private void StopMotor(IMyMotorStator motor)
-        {
-            motor.TargetVelocityRad = 0;
-            motor.Enabled = false;
-        }
+        
 
         private bool isAtTarget(IMyMotorStator motor, double targetAngle)
         {
@@ -163,37 +218,54 @@ namespace IngameScript
         }
 
 
-        
-        private class Position
+        private List<PathPoint> positionQueue = new List<PathPoint>();
+        public string MoveAll()
         {
-            public readonly double x;
-            public readonly double y;
-            public readonly double t;
-            public Position(double x, double y, double t=1)
-            {
-                this.x = x;
-                this.y = y;
-                this.t = t;
-            }
+            //positionQueue.Add(new PathPoint(0, 1, 1));
+            //positionQueue.Add(new PathPoint(0, 2, 1));
+            //positionQueue.Add(new PathPoint(0, 3, 1));
+            //positionQueue.Add(new PathPoint(0, 4, 1));
+            //positionQueue.Add(new PathPoint(2, 4, 1.8));
+            //positionQueue.Add(new PathPoint(2, 2, 1.8));
+            //positionQueue.Add(new PathPoint(2, 0, 1.8));
+            //positionQueue.Add(new PathPoint(2, -2, 1.8));
+            //positionQueue.Add(new PathPoint(2, -4, 1.8));
+            //positionQueue.Add(new PathPoint(2, 0, 4));
+            //positionQueue.Add(new PathPoint(0, 4, 4));
+            //positionQueue.Add(new PathPoint(0, 1, 6));
+
+            positionQueue.Add(new PathPoint(0, 1, 5));
+            positionQueue.Add(new PathPoint(0, 3, 2));
+            positionQueue.Add(new PathPoint(3, 3, 2));
+            positionQueue.Add(new PathPoint(3, -3, 2));
+            positionQueue.Add(new PathPoint(3, 0, 2, 2));
+            positionQueue.Add(new PathPoint(3, 3, 2, 1));
+            positionQueue.Add(new PathPoint(0, 3, 2, 1));
+            positionQueue.Add(new PathPoint(0, 1, 5));
+
+
+            List<PathPoint> processedPoints;
+            PathPlotter plotter = new PathPlotter(positionQueue);
+            Mother.Print($"Processing {positionQueue.Count} points");
+            processedPoints = plotter.Plot(positionQueue, .1);
+            positionQueue = processedPoints;
+            MoveArmPop();
+            return $"Moving {positionQueue.Count} points";
         }
-        private List<Position> positionQueue = new List<Position>();
-        public void MoveAll()
+        private void MoveArmPop()
         {
             if (positionQueue.Count == 0)
                 return;
-            Position target = positionQueue[0];
-            MoveTo(target.x, target.y, target.t);
+            PathPoint target = positionQueue[0];
+            if (positionQueue.Count == 1)
+            {
+                MoveTo(target);
+            } else
+            {
+                StartTo(target);
+                Mother.Wait(() => MoveArmPop(), target.t);
+            }
             positionQueue.RemoveAt(0);
-            Mother.Wait(() => MoveAll(), target.t + .1);
-        }
-    
-        /// <summary>
-        /// Run the module. This method is called each program cycle. You should limit 
-        /// use of this method to essential tasks that need to run frequently.
-        /// </summary>
-        public override void Run()
-        {
-            //
         }
 
         /// <summary>

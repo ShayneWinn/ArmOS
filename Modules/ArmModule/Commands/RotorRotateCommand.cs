@@ -88,7 +88,8 @@ namespace IngameScript
                     double speed;
                     if (!double.TryParse(option.Value, out speed))
                         return $"Error: could not parse speed '{option.Value}'";
-                    return Module.StartMotor(motor, angle, speed);
+                    motor.RotateToAngle(MyRotationDirection.AUTO, (float)angle, (float)speed);
+                    return "moving";
                 }
                 else if (option.Key == "time")
                 {
@@ -100,7 +101,8 @@ namespace IngameScript
                     double angleDifference = Math.Abs(MathHelper.ToDegrees(currentAngle) - angle + 180) % 360 - 180; // shortest angle difference   
                     double rotationPart = angleDifference / 360;
                     double speed = rotationPart / (time / 60); // rpm
-                    return Module.StartMotor(motor, angle, speed);
+                    motor.RotateToAngle(MyRotationDirection.AUTO, (float)angle, (float)speed);
+                    return "moving";
                 }
                 else
                 {
@@ -108,7 +110,8 @@ namespace IngameScript
                 }
             }
 
-            return Module.StartMotor(motor, angle, 1); // default to 1 rpm if no option specified
+            motor.RotateToAngle(MyRotationDirection.AUTO, (float)angle, 1f);
+            return "moving";
         }
     }
 }

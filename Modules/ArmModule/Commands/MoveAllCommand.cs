@@ -57,9 +57,9 @@ namespace IngameScript
         /// <returns></returns>
         public override string Execute(TerminalCommand command)
         {
-            Module.MoveAll();
+           
 
-            return $"Command executed successfully. Yay!";
+            return Module.MoveAll();
         }
     }
 }
