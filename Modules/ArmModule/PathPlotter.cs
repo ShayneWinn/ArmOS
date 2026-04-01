@@ -10,61 +10,57 @@ namespace IngameScript
 {
     public class PathPoint
     {
-        public readonly double x;
-        public readonly double y;
         public readonly double t;
         public readonly double v;
         public Vector3D Position;
+        public double x { get{return this.Position.X;} set {this.Position.X = value;}}
+        public double y { get{return this.Position.Y;} set {this.Position.Y = value;}}
+        public double z { get{return this.Position.Z;} set {this.Position.Z = value;}}
         public PathPoint(Vector3D position, double t=0, double v=0)
         {
             this.Position = position;
             this.v = v;
-            this.x = position.X;
-            this.y = position.Y;
             this.t = t;
         }
         public PathPoint(double x, double y, double t=1, double v=0) : 
-        this(new Vector3D(x, y, 0), t, v)
-        {}
+            this(new Vector3D(x, y, 0), t, v) {}
     }
 
     class PathPlotter
     {
-        List<PathPoint> points;
-        public PathPlotter(List<PathPoint> points)
-        {
-            this.points = points;
-        }
+        public PathPlotter() {}
 
         public List<PathPoint> Plot(List<PathPoint> points, double tStep = 0.1)
         {
             if(points.Count <= 0)
-            {
                 return new List<PathPoint>();
-            }
             if(points.Count == 1)
-            {
                 return points;
-            }
             
             List<PathPoint> ret = new List<PathPoint>();
             ret.Add(points[0]);
+            double t = tStep;
             for(int i = 0; i < points.Count-1; i++)
             {
-                double t = 0;
                 while(t < points[i+1].t)
                 {
-                    //Vector3D pos = Lerp(points[i], points[i+1], t/points[i+1].t);
-                    //ret.Add(new PathPoint(pos, Vector3D.Zero, tStep));
                     ret.Add(new PathPoint(
                         InterpolateSegment(points[i], points[i+1], t/points[i+1].t),
-                        tStep,
-                        0
+                        tStep
                     ));
                     t += tStep;
                 }
+                t -= tStep; // restore t to last added point
+                
+                if (t - points[i+1].t >= 0){
+                    ret.Add(new PathPoint(
+                        points[i+1].Position,
+                        points[i+1].t - t
+                    ));
+                }
+                t = tStep;
+
             }
-            ret.Add(points[points.Count-1]);
             return ret;
         }
 
@@ -104,33 +100,6 @@ namespace IngameScript
         {
             // Cubic ease-in-out: smooth acceleration and deceleration
             return t * t * (3 - 2 * t);
-        }
-
-        public PathPoint GetStateAtTime(double t)
-        {
-            int currentSegment = 0;
-            double elapsed = 0;
-            while (points[currentSegment].t + elapsed < t)
-            {
-                elapsed += points[currentSegment].t;
-                currentSegment++;
-                if (currentSegment >= points.Count)
-                {
-                    return new PathPoint
-                    (
-                        new Vector3D(points[points.Count - 1].x, points[points.Count - 1].y, 0),
-                        0,
-                        0
-                    );
-                }
-            }
-
-            double segmentProgress = (t - elapsed) / points[currentSegment].t;
-            return new PathPoint(InterpolateSegment(
-                points[currentSegment],
-                points[currentSegment + 1],
-                segmentProgress
-            ), 1, 0);
         }
 
         public Vector3D InterpolateSegment(PathPoint p1, PathPoint p2, double t)

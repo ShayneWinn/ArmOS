@@ -10,6 +10,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Data;
+using System.Diagnostics;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -91,7 +92,23 @@ namespace IngameScript
         /// </summary>
         public override void Run()
         {
-            //
+            if(this.ActiveControl) {
+                if (targetAngles.Length > 0){
+                    for(int i = 0; i < MotorNames.Count; i++) {
+                        IMyMotorStator motor = Motors[MotorNames[i]];
+                        double angle = targetAngles[i];
+
+                        var actual = MathHelper.ToDegrees(motor.Angle);
+                        double delta = mod(angle - actual + 180, 360) - 180;
+                        var degps = delta / Mother.Runtime.TimeSinceLastRun.TotalSeconds;
+                        var rpm = degps/6;
+                        motor.TargetVelocityRPM = (float)rpm;
+                        Mother.Print($"{motor.CustomName} {actual:F2} => {angle:F2} @ {rpm:F2}");
+                    }
+                } else {
+                    StopMove();
+                }
+            }
         }
 
 
@@ -111,6 +128,8 @@ namespace IngameScript
         //  //=========\\
         //  ||  Logic  ||
         //  \\=========//
+
+        private bool ActiveControl = false;
 
         private List<string> MotorNames;
         private Dictionary<string, IMyMotorStator> Motors;
@@ -140,60 +159,56 @@ namespace IngameScript
             };
         }
 
-        private bool IsMotorAtTarget(IMyMotorStator motor, double angle)
-        {
-            var actual = MathHelper.ToDegrees(motor.Angle);
-            double delta = mod(angle - actual + 180, 360) - 180;
-            return Math.Abs(delta) <= 1;
-        }
-
         private double[] targetAngles;
+
+        /// <summary>
+        /// Move to desired position WITHOUT active control
+        /// </summary>
         public string MoveTo(double x, double y, double seconds)
         {
+            ActiveControl = false;
             targetAngles = InverseKinematics(x, y);
             Mother.Print($"Moving {Motors.Count} to {targetAngles.Length} angles");
             for (int i = 0; i < targetAngles.Length; i++)
             {
                 var motor = Motors[MotorNames[i]];
                 var targetAngle = targetAngles[i];
-                StartMotor(motor, targetAngle, seconds);
-                Mother.GetModule<ActivityMonitor>().RegisterBlock(
-                    motor,
-                    block => IsMotorAtTarget(block as IMyMotorStator, targetAngle),
-                    block => StopMotor(block as IMyMotorStator)
-                );
+                MoveMotor(motor, targetAngle, seconds);
             }
             
             return $"Moving ({x}, {y}) over {seconds}s";
         }
-
+        /// <summary>
+        /// Move to desired position WITHOUT active control
+        /// </summary>
         public string MoveTo(PathPoint target)
         {
             return MoveTo(target.x, target.y, target.t);
         }
-
-        private void StartTo(PathPoint point)
-        {
-            targetAngles = InverseKinematics(point.x, point.y);
-            for (int i = 0; i < MotorNames.Count; i++)
-            {
-                var motor = Motors[MotorNames[i]];
-                StartMotor(motor, targetAngles[i], point.t);
-            }
-        }
-
-        private double mod (double a, double n) { return (a % n + n) % n; }
-
-        public void StartMotor(IMyMotorStator motor, double angle, double seconds)
+        /// <summary>
+        /// Move to desired position WITHOUT active control
+        /// </summary>
+        public void MoveMotor(IMyMotorStator motor, double angle, double seconds)
         {
             var actual = MathHelper.ToDegrees(motor.Angle);
             double delta = mod(angle - actual + 180, 360) - 180;
             var degps = delta / seconds;
-            var rpm = MathHelper.Clamp(degps/6, -10, 10);
+            var rpm = MathHelper.Clamp(degps/6, -5, 5);
             motor.TargetVelocityRPM = (float)rpm;
             motor.Enabled = true;
+            Mother.GetModule<ActivityMonitor>().RegisterBlock(
+                motor,
+                block => IsMotorAtTarget(block as IMyMotorStator, angle),
+                block => StopMotor(block as IMyMotorStator)
+            );
             
             Mother.Print($"{motor.CustomName} => {angle:F2} @ {rpm:F2}");
+        }
+        private bool IsMotorAtTarget(IMyMotorStator motor, double angle)
+        {
+            var actual = MathHelper.ToDegrees(motor.Angle);
+            double delta = mod(angle - actual + 180, 360) - 180;
+            return Math.Abs(delta) <= 2;
         }
         private void StopMotor(IMyMotorStator motor)
         {
@@ -203,6 +218,26 @@ namespace IngameScript
         }
 
         /// <summary>
+        /// Move to desired position WITH active control
+        /// </summary>
+        private void StartTo(PathPoint point)
+        {
+            ActiveControl = true;
+            targetAngles = InverseKinematics(point.x, point.y);
+        }
+        private void StopMove() {
+            ActiveControl = false;
+            foreach (IMyMotorStator motor in Motors.Values) {
+                StopMotor(motor);
+            }
+        }
+
+        private double mod (double a, double n) { return (a % n + n) % n; }
+
+
+
+
+        /// <summary>
         /// Home the arm to its default position.
         /// </summary>
         public void HomeArm()
@@ -210,61 +245,39 @@ namespace IngameScript
             MoveTo(0, 1, 5);
         }
 
-        
-
-        private bool isAtTarget(IMyMotorStator motor, double targetAngle)
-        {
-            return Math.Abs(motor.Angle - targetAngle) <= 1;
-        }
-
-
         private List<PathPoint> positionQueue = new List<PathPoint>();
         public string MoveAll()
         {
-            //positionQueue.Add(new PathPoint(0, 1, 1));
-            //positionQueue.Add(new PathPoint(0, 2, 1));
-            //positionQueue.Add(new PathPoint(0, 3, 1));
-            //positionQueue.Add(new PathPoint(0, 4, 1));
-            //positionQueue.Add(new PathPoint(2, 4, 1.8));
-            //positionQueue.Add(new PathPoint(2, 2, 1.8));
-            //positionQueue.Add(new PathPoint(2, 0, 1.8));
-            //positionQueue.Add(new PathPoint(2, -2, 1.8));
-            //positionQueue.Add(new PathPoint(2, -4, 1.8));
-            //positionQueue.Add(new PathPoint(2, 0, 4));
-            //positionQueue.Add(new PathPoint(0, 4, 4));
-            //positionQueue.Add(new PathPoint(0, 1, 6));
-
-            positionQueue.Add(new PathPoint(0, 1, 5));
+            positionQueue.Add(new PathPoint(0, 1, 4));
             positionQueue.Add(new PathPoint(0, 3, 2));
             positionQueue.Add(new PathPoint(3, 3, 2));
             positionQueue.Add(new PathPoint(3, -3, 2));
-            positionQueue.Add(new PathPoint(3, 0, 2, 2));
-            positionQueue.Add(new PathPoint(3, 3, 2, 1));
-            positionQueue.Add(new PathPoint(0, 3, 2, 1));
+            positionQueue.Add(new PathPoint(3, 0, 2, 1));
+            positionQueue.Add(new PathPoint(3, 3, 2));
+            positionQueue.Add(new PathPoint(-3, 3, 2));
             positionQueue.Add(new PathPoint(0, 1, 5));
 
 
             List<PathPoint> processedPoints;
-            PathPlotter plotter = new PathPlotter(positionQueue);
+            PathPlotter plotter = new PathPlotter();
             Mother.Print($"Processing {positionQueue.Count} points");
             processedPoints = plotter.Plot(positionQueue, .1);
             positionQueue = processedPoints;
-            MoveArmPop();
+            PopPosition();
             return $"Moving {positionQueue.Count} points";
         }
-        private void MoveArmPop()
+        private void PopPosition()
         {
             if (positionQueue.Count == 0)
+            {   
+                StopMove();
                 return;
-            PathPoint target = positionQueue[0];
-            if (positionQueue.Count == 1)
-            {
-                MoveTo(target);
-            } else
-            {
-                StartTo(target);
-                Mother.Wait(() => MoveArmPop(), target.t);
             }
+            PathPoint target = positionQueue[0];
+
+            StartTo(target);
+            Mother.Wait(() => PopPosition(), target.t);
+            Mother.Print($"{target.x:F4}, {target.y:F4}, {target.z:F4}");
             positionQueue.RemoveAt(0);
         }
 
