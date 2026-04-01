@@ -1,4 +1,4 @@
-# MotherArm
+# ArmOS
 This is a custom extention module for Agent Luke's MotherOS. All credit to him for the amazing work he has done. This module aims to make robotic arms safer and easier to use in Space Engineers. 
 
 ## About Mother
