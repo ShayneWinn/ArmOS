@@ -35,6 +35,7 @@ namespace IngameScript
         public IMyMotorStator Block;
         public double TargetAngle;
         public double Angle { get{return MathHelper.ToDegrees(Block.Angle);} }
+        public double Rad { get{return Block.Angle;} }
         public double RPM { get{return Block.TargetVelocityRPM;} set{Block.TargetVelocityRPM = (float)value;} }
         public double MaxRPM;
         public double MaxAcc;

@@ -72,7 +72,7 @@ namespace IngameScript
             if (!double.TryParse(command.Arguments[2], out seconds))
                 return $"Error: could not parse seconds '{command.Arguments[2]}'";
 
-            return Module.MoveTo(x, y, seconds);
+            return Module.StartTo(new PathPoint(x, y, seconds));
         }
     }
 }

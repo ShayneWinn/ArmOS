@@ -58,7 +58,7 @@ namespace IngameScript
         public override string Execute(TerminalCommand command)
         {
            
-
+            Module.InitTest();
             return Module.MoveAll();
         }
     }

@@ -90,7 +90,7 @@ namespace IngameScript
                     var trpm = MathHelper.Clamp(degps/6, -motor.MaxRPM, motor.MaxRPM);
                     var drpm = trpm - motor.RPM;
                     if(Math.Abs(drpm) > motor.MaxAcc * dt) {
-                        Mother.Print($"{motor.CustomName} Excceded max Acc {drpm:F2}/{motor.MaxRPM:F2}");
+                        //Mother.Print($"{motor.CustomName} Excceded max Acc {drpm:F2}/{motor.MaxRPM:F2}");
                         drpm = MathHelper.Clamp(drpm, -motor.MaxAcc * dt, motor.MaxAcc * dt);
                     }
                     motor.RPM += drpm;
@@ -131,8 +131,11 @@ namespace IngameScript
         CommandBus Bus;
         BlockCatalogue Catalogue;
 
-        private double[] InverseKinematics(double x, double y)
+        private double[] InverseKinematics(Vector3D pos)
         {
+            double x = pos.X;
+            double y = pos.Y;
+            
             double armlength = 3f;
             double baselength = Math.Sqrt(x * x + y * y);
             double baseAngle = Math.Atan2(y, x) - Math.PI/2; // compensate for rotor orientation
@@ -153,29 +156,35 @@ namespace IngameScript
             };
         }
 
+        private Vector3D ForwardKinematics() {
+            double baseAngle = Motors[0].Rad;
+            double shoulderAngle = Motors[1].Rad;
+            double elbowAngle = Motors[2].Rad;
+            double armLength = 3f;
+
+            double baseLength = (Math.Sin(shoulderAngle) * armLength * 2) + 1;
+            double y = baseLength * Math.Sin(baseAngle + Math.PI/2);
+            double x = baseLength * Math.Cos(baseAngle + Math.PI/2);
+
+            return new Vector3D(x, y, 0);
+        }
+
         private double[] targetAngles;
 
         /// <summary>
         /// Move to desired position WITHOUT active control
         /// </summary>
-        public string MoveTo(double x, double y, double seconds)
+        public string MoveTo(PathPoint target)
         {
-            targetAngles = InverseKinematics(x, y);
+            targetAngles = InverseKinematics(target.Position);
             Mother.Print($"Moving {Motors.Count} to {targetAngles.Length} angles");
             if (Motors.Count != targetAngles.Length)
                 return "";
 
             for (int i = 0; i < targetAngles.Length; i++)
-                MoveMotor(Motors[i], targetAngles[i], seconds);
+                MoveMotor(Motors[i], targetAngles[i], target.t);
             
-            return $"Moving ({x}, {y}) over {seconds}s";
-        }
-        /// <summary>
-        /// Move to desired position WITHOUT active control
-        /// </summary>
-        public string MoveTo(PathPoint target)
-        {
-            return MoveTo(target.x, target.y, target.t);
+            return $"Moving ({target.Position.X}, {target.Position.Y}) over {target.t}s";
         }
         /// <summary>
         /// Move motor to desired position WITHOUT active control
@@ -193,35 +202,26 @@ namespace IngameScript
             
             Mother.Print($"{motor.CustomName} => {angle:F2} @ {rpm:F2}");
         }
-        // DEPRECIATED
-        private bool IsMotorAtTarget(IMyMotorStator motor, double angle)
-        {
-            var actual = MathHelper.ToDegrees(motor.Angle);
-            double delta = mod(angle - actual + 180, 360) - 180;
-            return Math.Abs(delta) <= 2;
-        }
-        private void StopMotor(Motor motor)
-        {
-            motor.RPM = 0;
-            motor.ActiveControl = false;
-        }
 
         /// <summary>
         /// Move to desired position WITH active control
         /// </summary>
-        public void StartTo(PathPoint point)
+        public string StartTo(PathPoint target)
         {
-            targetAngles = InverseKinematics(point.x, point.y);
-            for (int i = 0; i < targetAngles.Length; i++)
-            {
-                Motors[i].TargetAngle = targetAngles[i];
-                Motors[i].ActiveControl = true;
+            if(positionQueue.Count != 0){
+                Mother.Print("Clearing Position Queue");
+                positionQueue.Clear();
             }
-
+            PathPoint current = new PathPoint(ForwardKinematics());
+            positionQueue.Add(current); positionQueue.Add(target);
+            
+            MoveAll();
+            return $"Moving ({target.Position.X}, {target.Position.Y}) over {target.t}s";
         }
         private void StopMove() {
             foreach (Motor motor in Motors) {
-                StopMotor(motor);
+                motor.RPM = 0;
+                motor.ActiveControl = false;
             }
         }
 
@@ -235,12 +235,10 @@ namespace IngameScript
         /// </summary>
         public void HomeArm()
         {
-            MoveTo(0, 1, 5);
+            MoveTo(new PathPoint(0, 1, 5));
         }
 
-        private List<PathPoint> positionQueue = new List<PathPoint>();
-        public string MoveAll()
-        {
+        public void InitTest() {
             positionQueue.Add(new PathPoint(0, 1, 4));
             positionQueue.Add(new PathPoint(0, 3, 2));
             positionQueue.Add(new PathPoint(3, 3, 2));
@@ -249,8 +247,11 @@ namespace IngameScript
             positionQueue.Add(new PathPoint(3, 3, 2));
             positionQueue.Add(new PathPoint(-3, 3, 2));
             positionQueue.Add(new PathPoint(0, 1, 5));
+        }
 
-
+        private List<PathPoint> positionQueue = new List<PathPoint>();
+        public string MoveAll()
+        {
             List<PathPoint> processedPoints;
             PathPlotter plotter = new PathPlotter();
             Mother.Print($"Processing {positionQueue.Count} points");
@@ -268,7 +269,13 @@ namespace IngameScript
             }
             PathPoint target = positionQueue[0];
 
-            StartTo(target);
+            targetAngles = InverseKinematics(target.Position);
+            for (int i = 0; i < targetAngles.Length; i++)
+            {
+                Motors[i].TargetAngle = targetAngles[i];
+                Motors[i].ActiveControl = true;
+            }
+
             Mother.Wait(() => PopPosition(), target.t);
             Mother.Print($"{target.x:F4}, {target.y:F4}, {target.z:F4}");
             positionQueue.RemoveAt(0);
