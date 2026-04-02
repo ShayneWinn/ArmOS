@@ -6,6 +6,7 @@ using Sandbox.ModAPI.Ingame;
 using Sandbox.ModAPI.Interfaces;
 using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
+using System.CodeDom;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -28,22 +29,12 @@ using VRageMath;
 
 namespace IngameScript
 {
-    public class Motor
+    public class ActiveMotor
     {
-        public int id;
-        public string CustomName;
-        public IMyMotorStator Block;
-        public double TargetAngle;
-        public double Angle { get{return MathHelper.ToDegrees(Block.Angle);} }
-        public double Rad { get{return Block.Angle;} }
-        public double RPM { get{return Block.TargetVelocityRPM;} set{Block.TargetVelocityRPM = (float)value;} }
-        public double MaxRPM;
-        public double MaxAcc;
-        public bool ActiveControl = false;
-
-        public Motor(BlockCatalogue _catalog, IMyMotorStator _block)
+        // CONSTRUCTORS
+        public ActiveMotor(IMyMotorStator _block, BlockCatalogue _catalog)
         {
-            CustomName = _block.CustomName;
+            State = MotorStates.OFF;
             Block = _block;
             if(!int.TryParse(_catalog.GetBlockConfiguration(Block).Get("general", "motor/id").ToString(), out id))
                 throw new Exception($"Motor {CustomName} is missing or has invalid motor/id");
@@ -54,6 +45,24 @@ namespace IngameScript
             TargetAngle = Angle;
         }
 
+        // PUBLIC
+        public IMyMotorStator Block {get;}
+        public readonly int id;
+        public string CustomName {get {return Block.CustomName;} }
+        public double TargetAngle;
+        public double Angle{ get{return Block.Angle;} }
+        public double Rad{ get{return Block.Angle;} }
+        public double Deg{ get{return MathHelper.ToDegrees(Block.Angle);} }
+        public double RPM{ get{return Block.TargetVelocityRPM;} set{Block.TargetVelocityRPM = (float)value;} }
+        public double MaxRPM;
+        public double MaxAcc;
+        public MotorStates State;
 
+        // INTERNALS
+        public enum MotorStates {
+            OFF,
+            MOVING,
+            ACTIVE,
+        }
     }
 }

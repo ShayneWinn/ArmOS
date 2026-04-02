@@ -32,7 +32,21 @@ namespace IngameScript
     /// <summary>
     /// The ArmModule extension module.
     /// </summary>
-    
+    //
+    //              .-.
+    //         _.-'( o ).
+    //    .--:' _.-''-'. \.
+    //   ( {} )'        \. \.
+    //    '--'            \. \.
+    //     \  \           / /\ \
+    //      \  \          \/  \/
+    //      .\  \-.        ArmOS
+    //     /  ,-.  \
+    //     \  `-'  /
+    //      :-._.-:
+    //____ /       \ __________
+    //    '|_______|'          \
+    //                          \
     public class ArmModule: BaseExtensionModule
     {
 
@@ -58,15 +72,16 @@ namespace IngameScript
             Bus = Mother.GetModule<CommandBus>();
             Catalogue = Mother.GetModule<BlockCatalogue>();
 
-            Motors = new List<Motor>();
+            Motors = new List<ActiveMotor>();
 
             Catalogue.GetBlocksByName<IMyMotorStator>("#arm/motor");
             foreach (var motor in Catalogue.GetBlocksByName<IMyMotorStator>("#arm/motor"))
             {
                 Mother.Print("$Found motor: " + motor.CustomName);
-                Motors.Add(new Motor(Catalogue, motor));
+                Motors.Add(new ActiveMotor(motor, Catalogue));
             }
-            Motors.OrderBy(i => i.id);
+
+            Motors.Sort((a, b) => { return a.id.CompareTo(b.id);});
 
 
             //MOTHER... HEAR ME!!!
@@ -82,10 +97,10 @@ namespace IngameScript
         /// </summary>
         public override void Run()
         {
-            foreach (Motor motor in Motors) {
-                if(motor.ActiveControl) {
+            foreach (ActiveMotor motor in Motors) {
+                if(motor.State == ActiveMotor.MotorStates.ACTIVE) {
                     double dt = Mother.Runtime.TimeSinceLastRun.TotalSeconds;
-                    double delta = mod(motor.TargetAngle - motor.Angle + 180, 360) - 180;
+                    double delta = mod(motor.TargetAngle - motor.Deg + 180, 360) - 180;
                     var degps = delta / dt;
                     var trpm = MathHelper.Clamp(degps/6, -motor.MaxRPM, motor.MaxRPM);
                     var drpm = trpm - motor.RPM;
@@ -96,7 +111,7 @@ namespace IngameScript
                     motor.RPM += drpm;
                 }
                 else if (motor.RPM != 0) {
-                    double delta = mod(motor.TargetAngle - motor.Angle + 180, 360) - 180;
+                    double delta = mod(motor.TargetAngle - motor.Deg + 180, 360) - 180;
                     if (Math.Abs(delta) <= 2){
                         motor.RPM = 0;
                     }
@@ -112,7 +127,7 @@ namespace IngameScript
         public IMyMotorStator GetMotorByName(string name)
         {
             IMyMotorStator ret = null;
-            foreach(Motor motor in Motors) 
+            foreach(ActiveMotor motor in Motors) 
             {
                 if(motor.CustomName.Equals(name))
                     return motor.Block;
@@ -126,7 +141,7 @@ namespace IngameScript
         //  \\=========//
 
 
-        private List<Motor> Motors;
+        private List<ActiveMotor> Motors;
 
         CommandBus Bus;
         BlockCatalogue Catalogue;
@@ -181,23 +196,24 @@ namespace IngameScript
             if (Motors.Count != targetAngles.Length)
                 return "";
 
-            for (int i = 0; i < targetAngles.Length; i++)
-                MoveMotor(Motors[i], targetAngles[i], target.t);
-            
+            foreach (ActiveMotor motor in Motors){
+                MoveMotor(motor, targetAngles[motor.id], target.t);
+            }
+
             return $"Moving ({target.Position.X}, {target.Position.Y}) over {target.t}s";
         }
         /// <summary>
         /// Move motor to desired position WITHOUT active control
         /// </summary>
-        public void MoveMotor(Motor motor, double angle, double seconds)
+        public void MoveMotor(ActiveMotor motor, double angle, double seconds)
         {
-            double delta = mod(angle - motor.Angle + 180, 360) - 180;
+            double delta = mod(angle - motor.Deg + 180, 360) - 180;
             var degps = delta / seconds;
             var rpm = MathHelper.Clamp(degps/6, -motor.MaxRPM, motor.MaxRPM);
 
             motor.RPM = (float)rpm;
             motor.TargetAngle = angle;
-            motor.ActiveControl = false;
+            motor.State = ActiveMotor.MotorStates.MOVING;
             motor.Block.Enabled = true;
             
             Mother.Print($"{motor.CustomName} => {angle:F2} @ {rpm:F2}");
@@ -219,9 +235,9 @@ namespace IngameScript
             return $"Moving ({target.Position.X}, {target.Position.Y}) over {target.t}s";
         }
         private void StopMove() {
-            foreach (Motor motor in Motors) {
+            foreach (ActiveMotor motor in Motors) {
                 motor.RPM = 0;
-                motor.ActiveControl = false;
+                motor.State = ActiveMotor.MotorStates.ACTIVE;
             }
         }
 
@@ -270,10 +286,10 @@ namespace IngameScript
             PathPoint target = positionQueue[0];
 
             targetAngles = InverseKinematics(target.Position);
-            for (int i = 0; i < targetAngles.Length; i++)
+            foreach (ActiveMotor motor in Motors)
             {
-                Motors[i].TargetAngle = targetAngles[i];
-                Motors[i].ActiveControl = true;
+                motor.TargetAngle = targetAngles[motor.id];
+                motor.State = ActiveMotor.MotorStates.ACTIVE;
             }
 
             Mother.Wait(() => PopPosition(), target.t);
@@ -292,3 +308,4 @@ namespace IngameScript
         }
     }
 }
+// you dont want to know how long that ascii art took...
