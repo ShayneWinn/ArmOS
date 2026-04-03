@@ -50,6 +50,7 @@ namespace IngameScript
         public readonly int id;
         public string CustomName {get {return Block.CustomName;} }
         public double TargetAngle;
+        public double TargetRPM;
         public double Angle{ get{return Block.Angle;} }
         public double Rad{ get{return Block.Angle;} }
         public double Deg{ get{return MathHelper.ToDegrees(Block.Angle);} }
@@ -58,11 +59,64 @@ namespace IngameScript
         public double MaxAcc;
         public MotorStates State;
 
+        public void Update(double dt) {
+            if(State == ActiveMotor.MotorStates.ACTIVE) {
+                double delta = mod(TargetAngle - Deg + 180, 360) - 180;
+                var degps = delta / dt;
+                var trpm = MathHelper.Clamp(degps/6, -MaxRPM, MaxRPM);
+                var drpm = trpm - RPM;
+                if(Math.Abs(drpm) > MaxAcc * dt) {
+                    //Mother.Print($"{motor.CustomName} Excceded max Acc {drpm:F2}/{motor.MaxRPM:F2}");
+                    drpm = MathHelper.Clamp(drpm, -MaxAcc * dt, MaxAcc * dt);
+                }
+                RPM += drpm;
+            }
+            else if (State == ActiveMotor.MotorStates.MOVING) {
+                double delta = mod(TargetAngle - Deg + 180, 360) - 180;
+                if (Math.Abs(delta) <= 1){
+                    Stop();
+                }
+            }
+        }
+
+        public void RotateToAngle(double angle, double rpm) 
+        {
+            this.TargetAngle = angle; this.TargetRPM = rpm;
+            Block.RotateToAngle(MyRotationDirection.AUTO, (float)TargetAngle, (float)TargetRPM);
+        }
+
+        public void Activate(double angle = double.NaN) {
+            if(double.IsNaN(angle))
+                angle = Angle;
+            TargetAngle = angle;
+            State = ActiveMotor.MotorStates.ACTIVE;
+        }
+
+        /// <summary>
+        /// Move motor to desired position WITHOUT active control
+        /// </summary>
+        public void Start(double angle, double seconds) 
+        {
+            double delta = mod(angle - Deg + 180, 360) - 180;
+            var degps = delta / seconds;
+            var rpm = MathHelper.Clamp(degps/6, -MaxRPM, MaxRPM);
+
+            RPM = (float)rpm;
+            TargetAngle = angle;
+            State = ActiveMotor.MotorStates.MOVING;
+        }
+
+        public void Stop(){
+            RPM = 0;
+            State = ActiveMotor.MotorStates.OFF;
+        }
+
         // INTERNALS
         public enum MotorStates {
             OFF,
             MOVING,
             ACTIVE,
         }
+        private double mod (double a, double n) { return (a % n + n) % n; }
     }
 }

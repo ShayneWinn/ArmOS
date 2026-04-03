@@ -22,6 +22,7 @@ namespace IngameScript
             // Register Extension Modules
             mother.RegisterModules(new List<IExtensionModule> {
                 new ArmModule(mother),
+                new ActiveMotorModule(mother)
             });
         }
 
